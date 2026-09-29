@@ -21,6 +21,7 @@ export default function App() {
   const [dueDate, setDueDate] = useState("");
   const [category, setCategory] = useState("");
   const [tags, setTags] = useState("");
+  const [notes, setNotes] = useState("");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortBy, setSortBy] = useState("manual");
@@ -65,7 +66,7 @@ export default function App() {
             (filter === "active" && !todo.completed) ||
             (filter === "completed" && todo.completed)) &&
           (categoryFilter === "all" || todo.category === categoryFilter) &&
-          (!query || [todo.title, todo.category, ...(todo.tags || [])]
+          (!query || [todo.title, todo.category, todo.notes, ...(todo.tags || [])]
             .filter(Boolean).some((value) => value.toLocaleLowerCase().includes(query))),
       );
     if (sortBy === "title") filtered.sort((a, b) => a.title.localeCompare(b.title));
@@ -100,6 +101,7 @@ export default function App() {
           due_date: dueDate || null,
           category: category.trim() || null,
           tags: tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+          notes: notes.trim(),
         }),
       });
       setTodos((items) => [...items, added]);
@@ -107,6 +109,7 @@ export default function App() {
       setDueDate("");
       setCategory("");
       setTags("");
+      setNotes("");
     });
   }
   function toggle(todo) {
@@ -146,6 +149,7 @@ export default function App() {
       due_date: todo.due_date || "",
       category: todo.category || "",
       tags: (todo.tags || []).join(", "),
+      notes: todo.notes || "",
     });
   }
   function saveTodo(event, todo) {
@@ -158,6 +162,7 @@ export default function App() {
           due_date: editDraft.due_date || null,
           category: editDraft.category.trim() || null,
           tags: editDraft.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
+          notes: editDraft.notes.trim(),
         }),
       });
       setTodos((items) => items.map((item) => (item.id === todo.id ? updated : item)));
@@ -179,11 +184,11 @@ export default function App() {
   return (
     <main className="page-shell">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="Daymark home">
+        <a className="brand" href="#top" aria-label="Taskly home">
           <span className="brand-mark">
             <ListTodo size={18} strokeWidth={2.3} />
           </span>
-          <span>Daymark</span>
+          <span>Taskly</span>
         </a>
         <span className="local-label">
           <span className="live-dot" /> YOUR PRIVATE SPACE
@@ -266,6 +271,10 @@ export default function App() {
           <label className="tags-field">
             <span>Tags <small>comma separated, up to 10</small></span>
             <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="planning, errands" aria-label="Task tags, separated by commas" />
+          </label>
+          <label className="notes-field">
+            <span>Notes <small>optional, up to 5,000 characters</small></span>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={5000} placeholder="Add context or details for this task…" aria-label="Task notes" />
           </label>
         </div>
         <div className="list-toolbar">
@@ -377,6 +386,7 @@ export default function App() {
                 </button>
                 <div className="task-content">
                   <span className="task-title">{todo.title}</span>
+                  {todo.notes && <p className="task-notes">{todo.notes}</p>}
                   {(todo.due_date || todo.category || todo.tags?.length > 0) && (
                     <div className="task-metadata">
                       {todo.due_date && <span className={`due-chip${!todo.completed && todo.due_date < todayKey() ? " overdue" : ""}`}><CalendarDays size={12} /> {formatDueDate(todo.due_date)}</span>}
@@ -390,6 +400,7 @@ export default function App() {
                       <label><span className="sr-only">Due date</span><input type="date" value={editDraft.due_date} onChange={(e) => setEditDraft({ ...editDraft, due_date: e.target.value })} /></label>
                       <label><span className="sr-only">Category</span><input maxLength={40} placeholder="Category" value={editDraft.category} onChange={(e) => setEditDraft({ ...editDraft, category: e.target.value })} /></label>
                       <label><span className="sr-only">Tags separated by commas</span><input placeholder="Tags, comma separated" value={editDraft.tags} onChange={(e) => setEditDraft({ ...editDraft, tags: e.target.value })} /></label>
+                      <label className="edit-notes"><span className="sr-only">Task notes</span><textarea maxLength={5000} placeholder="Notes" value={editDraft.notes} onChange={(e) => setEditDraft({ ...editDraft, notes: e.target.value })} /></label>
                       <div className="edit-actions"><button type="submit" disabled={busy}>Save</button><button type="button" onClick={() => { setEditingId(null); setEditDraft(null); }}>Cancel</button></div>
                     </form>
                   )}

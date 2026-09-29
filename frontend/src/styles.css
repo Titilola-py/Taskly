@@ -105,6 +105,7 @@ button {
   letter-spacing: 0;
 }
 .task-fields input,
+.task-fields textarea,
 .search-box input,
 .sort-control select,
 .edit-task-form input {
@@ -119,6 +120,7 @@ button {
   font-size: 11px;
 }
 .task-fields input:focus,
+.task-fields textarea:focus,
 .search-box:focus-within,
 .sort-control select:focus,
 .edit-task-form input:focus {
@@ -440,6 +442,31 @@ button {
   overflow-wrap: anywhere;
 }
 .task-content { flex: 1; min-width: 0; }
+.task-notes {
+  margin: 5px 0 0;
+  color: #808a80;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.notes-field { grid-column: 1 / -1; }
+.task-fields textarea,
+.edit-task-form textarea {
+  min-height: 58px;
+  resize: vertical;
+  padding: 8px 9px;
+  border: 1px solid #e6e8df;
+  border-radius: 6px;
+  color: #465449;
+  background: #fff;
+  font: 11px "DM Sans", sans-serif;
+}
+.task-fields textarea:focus,
+.edit-task-form textarea:focus {
+  border-color: #9cae9b;
+  outline: 2px solid #78927833;
+}
 .task-metadata {
   display: flex;
   flex-wrap: wrap;
@@ -475,6 +502,7 @@ button {
   background: #fbfbf7;
 }
 .edit-task-form input { height: 31px; }
+.edit-task-form .edit-notes { grid-column: 1 / -1; }
 .edit-actions { display: flex; gap: 6px; }
 .edit-actions button {
   border: 0;

@@ -1,6 +1,9 @@
 __pycache__/
+.test-data/
 *.py[cod]
 .venv/
+.npm-cache/
+.pip-cache/
 todos.db
 node_modules/
 dist/

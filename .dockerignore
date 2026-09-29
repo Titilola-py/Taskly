@@ -1,0 +1,12 @@
+.git
+.venv
+**/.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/.test-data
+**/*.db
+**/.npm-cache
+**/.pip-cache
+.env
+*.log

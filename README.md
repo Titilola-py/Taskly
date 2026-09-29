@@ -1,6 +1,6 @@
-# Daymark Todo
+# Taskly Todo
 
-Daymark is a local-first task manager for keeping a focused list of things to do. Create tasks, mark them complete, reorder them, and remove them. The app uses a React interface, a FastAPI JSON API, and SQLite for persistent local storage.
+Taskly is a local-first task manager for keeping a focused list of things to do. Create tasks, mark them complete, reorder them, and remove them. The app uses a React interface, a FastAPI JSON API, and SQLite for persistent local storage.
 
 ## Features
 
@@ -9,6 +9,7 @@ Daymark is a local-first task manager for keeping a focused list of things to do
 - Move tasks up or down; ordering is saved in SQLite.
 - Filter the list by all, active, or completed tasks.
 - Add optional due dates, categories, and tags to tasks; edit these details later.
+- Add up to 5,000 characters of notes to a task; search also matches task notes.
 - Search task titles, categories, and tags, and filter the list by category.
 - Sort by saved order, due date, title, category, or date added.
 - Use the responsive interface with keyboard-accessible controls.
@@ -70,14 +71,14 @@ To choose a different database file, set `TODO_DATABASE_PATH` before starting th
 PowerShell:
 
 ```powershell
-$env:TODO_DATABASE_PATH = "C:\data\daymark.db"
+$env:TODO_DATABASE_PATH = "C:\data\taskly.db"
 uvicorn main:app --reload
 ```
 
 macOS or Linux:
 
 ```bash
-export TODO_DATABASE_PATH="$HOME/.local/share/daymark/todos.db"
+export TODO_DATABASE_PATH="$HOME/.local/share/taskly/todos.db"
 uvicorn main:app --reload
 ```
 
@@ -90,7 +91,7 @@ All routes use the `/api` prefix and exchange JSON unless otherwise stated.
 | `GET` | `/api/health` | Check that the API is available | `200` with `{ "status": "ok" }` |
 | `GET` | `/api/todos` | List tasks in saved order | `200` with an array of tasks |
 | `POST` | `/api/todos` | Create a task | `201` with the created task |
-| `PATCH` | `/api/todos/{id}` | Change the title, completion state, due date, category, and/or tags | `200` with the updated task |
+| `PATCH` | `/api/todos/{id}` | Change the title, completion state, due date, category, tags, and/or notes | `200` with the updated task |
 | `POST` | `/api/todos/{id}/move?direction=up or down` | Move a task one position | `200` with the ordered task array |
 | `DELETE` | `/api/todos/{id}` | Delete a task | `204` with no response body |
 
@@ -105,11 +106,14 @@ Task titles must contain 1–240 characters. The frontend trims surrounding whit
   "created_at": "2026-09-29T09:00:00.000Z",
   "due_date": "2026-10-02",
   "category": "Work",
-  "tags": ["planning", "review"]
+  "tags": ["planning", "review"],
+  "notes": "Bring the revised project outline and review next steps."
 }
 ```
 
 `due_date` uses the ISO `YYYY-MM-DD` format and can be `null`. `category` is optional and limited to 40 characters. `tags` is an array of up to 10 unique values, each limited to 24 characters. Send `null` for `due_date` or `category` to clear them; send an empty array to remove all tags.
+
+`notes` is optional, defaults to an empty string, and is limited to 5,000 characters. Notes are searchable and can be changed or cleared through the task update route.
 
 Example requests:
 
@@ -128,6 +132,11 @@ curl -X PATCH http://127.0.0.1:8000/api/todos/1 \
 curl -X PATCH http://127.0.0.1:8000/api/todos/1 \
   -H "Content-Type: application/json" \
   -d '{"due_date":"2026-10-02","category":"Work","tags":["planning","review"]}'
+
+# Add notes to task 1
+curl -X PATCH http://127.0.0.1:8000/api/todos/1 \
+  -H "Content-Type: application/json" \
+  -d '{"notes":"Bring the revised project outline and review next steps."}'
 ```
 
 Invalid input returns `422`; requests for a task ID that does not exist return `404`.
@@ -154,9 +163,20 @@ From `frontend/`, `npm run build` creates a production bundle in `frontend/dist/
 
 The backend can be run with `uvicorn main:app --reload` from `backend/`. SQLite is part of Python's standard library, so it does not need a separate service.
 
+To install backend test dependencies from the repository root, run `python -m pip install -r backend/requirements-dev.txt`, then run `python -m unittest discover -s backend -p "test_*.py"`.
+
 ## Notes
 
 - This version is designed for one user on one machine. It does not provide authentication, synchronization, backups, or collaborative lists.
 - The frontend imports Google Fonts. If network access is unavailable, the CSS system-font fallbacks are used.
 - The backend's CORS allowlist is configured for the local Vite origins (`localhost:5173` and `127.0.0.1:5173`). Review it before hosting the API elsewhere.
 - Startup adds the due-date, category, and tag columns to an existing SQLite database without removing existing tasks.
+- Startup adds the notes column to an existing SQLite database without removing existing tasks.
+
+## Public deployment
+
+The repository includes a Dockerfile and a Render Blueprint for a single-service deployment. It builds the Vite frontend, serves it from FastAPI, and stores SQLite at `/data/todos.db` on a persistent disk. The Blueprint uses Render's paid Starter web service plus a 1 GB disk; Render currently lists those at $7/month and $0.25/GB-month respectively. Check the current [Render pricing](https://render.com/pricing) before creating services.
+
+The Render Blueprint enables HTTP Basic authentication. Set `TASKLY_ACCESS_USERNAME` and `TASKLY_ACCESS_PASSWORD` when creating the service; the app refuses to start if public authentication is required but either value is missing. The `/api/health` route remains public for platform health checks. Use a unique, strong password and do not store sensitive or highly confidential notes in this prototype. Render's free web services do not support persistent disks, and their filesystem changes are lost on restart; see [Render's disk documentation](https://render.com/docs/disks) and [free service limitations](https://render.com/docs/free).
+
+After access protection is in place, create a Render Blueprint from this repository and review the service plan and disk before confirming creation. The service will then be reachable through a public `onrender.com` URL.

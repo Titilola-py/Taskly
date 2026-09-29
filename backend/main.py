@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import os
 import json
+import base64
+import binascii
+import secrets
 import sqlite3
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Path as PathParam, Response
+from fastapi import FastAPI, HTTPException, Path as PathParam, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
+from starlette.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 
 DEFAULT_DB = Path(__file__).resolve().parent / "todos.db"
 DB_PATH = Path(os.getenv("TODO_DATABASE_PATH", str(DEFAULT_DB)))
@@ -34,7 +39,8 @@ def init_db() -> None:
             created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
             due_date TEXT,
             category TEXT,
-            tags TEXT NOT NULL DEFAULT '[]'
+            tags TEXT NOT NULL DEFAULT '[]',
+            notes TEXT NOT NULL DEFAULT ''
         )""")
         columns = {row["name"] for row in db.execute("PRAGMA table_info(todos)")}
         if "due_date" not in columns:
@@ -43,10 +49,15 @@ def init_db() -> None:
             db.execute("ALTER TABLE todos ADD COLUMN category TEXT")
         if "tags" not in columns:
             db.execute("ALTER TABLE todos ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+        if "notes" not in columns:
+            db.execute("ALTER TABLE todos ADD COLUMN notes TEXT NOT NULL DEFAULT ''")
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if os.getenv("TASKLY_REQUIRE_AUTH", "false").lower() == "true":
+        if not os.getenv("TASKLY_ACCESS_USERNAME") or not os.getenv("TASKLY_ACCESS_PASSWORD"):
+            raise RuntimeError("Set TASKLY_ACCESS_USERNAME and TASKLY_ACCESS_PASSWORD when authentication is required")
     init_db()
     yield
 
@@ -61,11 +72,37 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def protect_public_app(request: Request, call_next):
+    if os.getenv("TASKLY_REQUIRE_AUTH", "false").lower() != "true" or request.url.path == "/api/health":
+        return await call_next(request)
+
+    header = request.headers.get("authorization", "")
+    try:
+        scheme, encoded = header.split(" ", 1)
+        if scheme.lower() != "basic":
+            raise ValueError("Unsupported authorization scheme")
+        username, password = base64.b64decode(encoded, validate=True).decode("utf-8").split(":", 1)
+    except (ValueError, UnicodeDecodeError, binascii.Error):
+        username, password = "", ""
+
+    expected_username = os.getenv("TASKLY_ACCESS_USERNAME", "")
+    expected_password = os.getenv("TASKLY_ACCESS_PASSWORD", "")
+    if not (secrets.compare_digest(username, expected_username) and secrets.compare_digest(password, expected_password)):
+        return PlainTextResponse(
+            "Authentication required",
+            status_code=401,
+            headers={"WWW-Authenticate": 'Basic realm="Taskly"'},
+        )
+    return await call_next(request)
+
+
 class TodoCreate(BaseModel):
     title: str = Field(min_length=1, max_length=240)
     due_date: date | None = None
     category: str | None = Field(default=None, max_length=40)
     tags: list[str] = Field(default_factory=list, max_length=10)
+    notes: str = Field(default="", max_length=5000)
 
     @field_validator("title")
     @classmethod
@@ -99,6 +136,11 @@ class TodoCreate(BaseModel):
             raise ValueError("A task can have at most 10 tags")
         return cleaned
 
+    @field_validator("notes")
+    @classmethod
+    def clean_notes(cls, value: str) -> str:
+        return value.strip()
+
 
 class TodoUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=240)
@@ -106,6 +148,7 @@ class TodoUpdate(BaseModel):
     due_date: date | None = None
     category: str | None = Field(default=None, max_length=40)
     tags: list[str] | None = Field(default=None, max_length=10)
+    notes: str | None = Field(default=None, max_length=5000)
 
     @field_validator("title")
     @classmethod
@@ -143,6 +186,11 @@ class TodoUpdate(BaseModel):
             raise ValueError("A task can have at most 10 tags")
         return cleaned
 
+    @field_validator("notes")
+    @classmethod
+    def clean_notes(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
 
 class TodoOut(BaseModel):
     id: int
@@ -153,13 +201,14 @@ class TodoOut(BaseModel):
     due_date: date | None
     category: str | None
     tags: list[str]
+    notes: str
 
 
 def serialize(row: sqlite3.Row) -> TodoOut:
     return TodoOut(
         id=row["id"], title=row["title"], completed=bool(row["completed"]),
         position=row["position"], created_at=row["created_at"], due_date=row["due_date"],
-        category=row["category"], tags=json.loads(row["tags"] or "[]"),
+        category=row["category"], tags=json.loads(row["tags"] or "[]"), notes=row["notes"],
     )
 
 
@@ -183,9 +232,9 @@ def create_todo(payload: TodoCreate) -> TodoOut:
     with connect() as db:
         position = db.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM todos").fetchone()[0]
         cursor = db.execute(
-            "INSERT INTO todos (title, position, due_date, category, tags) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO todos (title, position, due_date, category, tags, notes) VALUES (?, ?, ?, ?, ?, ?)",
             (payload.title, position, payload.due_date.isoformat() if payload.due_date else None,
-             payload.category, json.dumps(payload.tags)),
+             payload.category, json.dumps(payload.tags), payload.notes),
         )
         row = db.execute("SELECT * FROM todos WHERE id = ?", (cursor.lastrowid,)).fetchone()
         return serialize(row)
@@ -196,15 +245,15 @@ def update_todo(payload: TodoUpdate, todo_id: Annotated[int, PathParam(gt=0)]) -
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
         raise HTTPException(status_code=422, detail="Provide at least one field to update")
-    if any(value is None for key, value in changes.items() if key in {"title", "completed", "tags"}):
-        raise HTTPException(status_code=422, detail="title, completed, and tags cannot be null")
+    if any(value is None for key, value in changes.items() if key in {"title", "completed", "tags", "notes"}):
+        raise HTTPException(status_code=422, detail="title, completed, tags, and notes cannot be null")
     if "completed" in changes:
         changes["completed"] = int(changes["completed"])
     if "due_date" in changes:
         changes["due_date"] = changes["due_date"].isoformat() if changes["due_date"] else None
     if "tags" in changes:
         changes["tags"] = json.dumps(changes["tags"])
-    columns = {"title", "completed", "due_date", "category", "tags"}
+    columns = {"title", "completed", "due_date", "category", "tags", "notes"}
     assignments = ", ".join(f"{key} = ?" for key in changes if key in columns)
     with connect() as db:
         cursor = db.execute(f"UPDATE todos SET {assignments} WHERE id = ?", (*changes.values(), todo_id))
@@ -240,3 +289,8 @@ def delete_todo(todo_id: Annotated[int, PathParam(gt=0)]) -> Response:
         rows = ordered(db)
         db.executemany("UPDATE todos SET position = ? WHERE id = ?", [(i, row["id"]) for i, row in enumerate(rows)])
     return Response(status_code=204)
+
+
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if FRONTEND_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
