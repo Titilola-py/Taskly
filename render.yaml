@@ -2,21 +2,17 @@ services:
   - type: web
     name: taskly-tasks
     runtime: docker
-    plan: starter
+    plan: free
     region: frankfurt
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /api/health
     envVars:
       - key: TODO_DATABASE_PATH
-        value: /data/todos.db
+        value: /tmp/todos.db
       - key: TASKLY_REQUIRE_AUTH
         value: "true"
       - key: TASKLY_ACCESS_USERNAME
         sync: false
       - key: TASKLY_ACCESS_PASSWORD
         sync: false
-    disk:
-      name: taskly-data
-      mountPath: /data
-      sizeGB: 1

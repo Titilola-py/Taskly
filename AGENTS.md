@@ -22,7 +22,7 @@ Maintain Taskly as a polished, local-first task manager for one person. The appl
 - `frontend/src/` owns the React interface and styles.
 - `frontend/vite.config.js` configures the development server and proxies `/api` to `http://127.0.0.1:8000`.
 - `frontend/package.json` and `frontend/package-lock.json` define the JavaScript dependencies and scripts.
-- `Dockerfile`, `.dockerignore`, and `render.yaml` define the single-service Render deployment; production serves the built React client from FastAPI and stores SQLite on `/data`.
+- `Dockerfile`, `.dockerignore`, and `render.yaml` define the single-service Render deployment; it serves the built React client from FastAPI and stores demo SQLite data at `/tmp/todos.db` on Render's ephemeral filesystem.
 - `README.md` is the user-facing source for setup, operation, and API documentation.
 
 ## Engineering standards
@@ -52,7 +52,7 @@ Maintain Taskly as a polished, local-first task manager for one person. The appl
 - Keep local configuration in environment variables where appropriate. `TODO_DATABASE_PATH` overrides the default SQLite file path.
 - Do not commit virtual environments, `node_modules`, build output, local databases, secrets, or runtime logs.
 - Keep development CORS settings limited to the local frontend origins unless a deliberate deployment change requires otherwise.
-- The Render deployment requires HTTP Basic authentication credentials (`TASKLY_ACCESS_USERNAME` and `TASKLY_ACCESS_PASSWORD`) and a persistent disk. Never publicly deploy task data or notes without access protection; do not configure the service to keep user data on an ephemeral filesystem.
+- The Render Blueprint uses the free web service and requires HTTP Basic authentication credentials (`TASKLY_ACCESS_USERNAME` and `TASKLY_ACCESS_PASSWORD`). Clearly tell users that SQLite tasks may disappear on free-tier spin-down, restart, or redeploy. This is only for a non-sensitive demo; use persistent storage for data that must be retained.
 
 ## Local data
 

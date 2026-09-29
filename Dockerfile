@@ -11,7 +11,6 @@ COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY --from=frontend-build /src/frontend/dist ./frontend/dist
-ENV TODO_DATABASE_PATH=/data/todos.db
-RUN mkdir -p /data
+ENV TODO_DATABASE_PATH=/tmp/todos.db
 EXPOSE 10000
 CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-10000}"]
