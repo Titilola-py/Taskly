@@ -11,8 +11,4 @@ services:
       - key: TODO_DATABASE_PATH
         value: /tmp/todos.db
       - key: TASKLY_REQUIRE_AUTH
-        value: "true"
-      - key: TASKLY_ACCESS_USERNAME
-        sync: false
-      - key: TASKLY_ACCESS_PASSWORD
-        sync: false
+        value: "false"

@@ -52,7 +52,7 @@ Maintain Taskly as a polished, local-first task manager for one person. The appl
 - Keep local configuration in environment variables where appropriate. `TODO_DATABASE_PATH` overrides the default SQLite file path.
 - Do not commit virtual environments, `node_modules`, build output, local databases, secrets, or runtime logs.
 - Keep development CORS settings limited to the local frontend origins unless a deliberate deployment change requires otherwise.
-- The Render Blueprint uses the free web service and requires HTTP Basic authentication credentials (`TASKLY_ACCESS_USERNAME` and `TASKLY_ACCESS_PASSWORD`). Clearly tell users that SQLite tasks may disappear on free-tier spin-down, restart, or redeploy. This is only for a non-sensitive demo; use persistent storage for data that must be retained.
+- The Render Blueprint uses the free web service without authentication so tutors can access it. Anyone with the URL can view and modify the shared tasks; clearly state this and never include sensitive data. SQLite tasks may disappear on free-tier spin-down, restart, or redeploy; use persistent storage for data that must be retained.
 
 ## Local data
 
